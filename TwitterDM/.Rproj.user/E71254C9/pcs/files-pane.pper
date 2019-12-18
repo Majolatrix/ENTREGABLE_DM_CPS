@@ -1,0 +1,9 @@
+{
+    "path" : "~/TwitterDM",
+    "sortOrder" : [
+        {
+            "ascending" : true,
+            "columnIndex" : 2
+        }
+    ]
+}

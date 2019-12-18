@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1576459208333.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1805563927",
+    "id" : "D9F51759",
+    "lastKnownWriteTime" : 1576637516,
+    "last_content_update" : 1576637516591,
+    "path" : "~/TwitterDM/credenciales.R",
+    "project_path" : "credenciales.R",
+    "properties" : {
+        "cursorPosition" : "0,84",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

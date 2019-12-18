@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1576636170275.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1553698894",
+    "id" : "B9AE4C42",
+    "lastKnownWriteTime" : 1576641640,
+    "last_content_update" : 1576641640300,
+    "path" : "~/TwitterDM/otra_forma.R",
+    "project_path" : "otra_forma.R",
+    "properties" : {
+        "cursorPosition" : "95,0",
+        "scrollLine" : "88",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
