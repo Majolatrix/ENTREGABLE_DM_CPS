@@ -88,11 +88,14 @@ assignInNamespace("is_tweet_length", is_tweet_length, ns = "rtweet")
 #?search_tweets
 
 ## search for 500 tweets using the #rstats hashtag
-rstats_tweets <- search_tweets(q = "#arte", n = 18000)
+arte_hashtag <- search_tweets(q = "#arte", n = 18000)
+arte_word <- search_tweets(q = "arte", n = 18000)
 
-save_as_csv(rstats_tweets, file_name = "arte", prepend_ids = TRUE, na = "",
+save_as_csv(arte_hashtag, file_name = "arte_hashtag", prepend_ids = TRUE, na = "",
             fileEncoding = "UTF-8")
 
+save_as_csv(arte_word, file_name = "arte_word", prepend_ids = TRUE, na = "",
+            fileEncoding = "UTF-8")
 
 # view the first 3 rows of the dataframe
 head(rstats_tweets, n = 3)
