@@ -1,0 +1,215 @@
+---
+title: "DataMining Tweets Arte"
+author: "Maria Jose Cancinos"
+date: "26/12/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## install remotes packages
+  install.packages(c("tidyverse","tidytext","tm","proustr"))
+  
+## Cargamos las librerias  
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(proustr)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Analisis:
+
+Relevamiento de tweets en el mes de Diciembre mediante la API de Twitter para R y la libreria rtweet.
+Se generaron 2 data frames: el primero con la búsqueda del hashtag #Arte y el segundo únicamente que contenga Arte.
+
+##La API de Twitter vuelca la información en dataframes, para poder trabajar vamos a hacer la inversa, de CSV a Dataframe
+
+```{r}
+
+arte_hashtag <- read_csv('arte_hashtag.csv')
+arte_word <- read_csv('arte_word.csv')
+
+#names(arte_hashtag)
+#names(arte_word)
+```
+
+
+Ambos datafrmes son iguales en estructura (con 90 variables en el mismo orden) por lo cual se deberían unir en un único dataframe para poder trabajar y comenzar a realizar la limpieza de información. 
+Esta información unificada se llamará DATA_ART.
+
+```{r}
+
+DATA_ART = rbind (arte_hashtag, arte_word)
+
+View(DATA_ART)
+
+save_as_csv(DATA_ART, file_name = "arte_base", prepend_ids = TRUE, na = "",
+            fileEncoding = "UTF-8")
+
+```
+
+Ya están los 2 dataframes unificados. Se mantiene la cantidad de variables y las observaciones se incrementan a 35674.
+
+Nos vamos a quedar con los campos que nos interesan y con los tweets que sean en español: 
+
+```{r}
+DATA_ART <- DATA_ART %>% select ("created_at" ,
+"screen_name" ,
+"text",
+"source",
+"is_retweet",
+"hashtags",
+"symbols",
+"lang",
+"retweet_text"   ,         
+"retweet_created_at" ,     
+"retweet_source") %>% 
+  filter(lang == "es")
+
+#Nos quedamos con 15214 tweets
+
+summary(DATA_ART)
+```
+
+Tokenización y depuración de la base con stopwords y variable de palabras que no importan
+
+```{r}
+
+silly_words <- c('rt','t.co','https','tan','like','follow','youtube','instagram','facebook','y','así','bts_twt',
+                 'q','the','theframe','theframesamsung','d','va','cada','mas','as','lpm','da','etc','j','aqui',
+                 'in','s','v','vez','to','fe0f','u')
+
+DATA_ART %>% 
+  unnest_tokens(Palabra, text, token='tweets') %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^[a-zA-z]|^#|^@")) %>% 
+  arrange(desc(n))
+
+```
+
+Los 5 Hashtags más utilizados y menos utilizados que excluya #arte y #art (incluído sale primero con 7683) ya que me interesa saber qué otros hashtags acompañan ambas palabras
+
+```{r}
+
+DATA_ART %>% 
+  unnest_tokens(Palabra, text, token='tweets') %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^#")) %>%
+  filter(!str_detect(Palabra,"^#arte|^#art")) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5)
+
+#Son Cultura, historia, pintura, romanico, painting
+
+DATA_ART %>% 
+  unnest_tokens(Palabra, text, token='tweets') %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^#")) %>%
+  filter(!str_detect(Palabra,"^#arte|^#art")) %>% 
+  arrange((n)) %>% 
+  slice(1:5)
+
+#Son abandonedplaces, abogados, aborigen, abortolegal, abrazaméxico
+
+```
+
+Los 5 Hashtags más utilizados que excluya #arte #art #theframe #theframesamsung #samsung y que NO sean retweets
+
+```{r}
+
+DATA_ART %>% 
+  filter(is_retweet==FALSE) %>% 
+  unnest_tokens(Palabra, text, token='tweets') %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^#")) %>%
+  filter(!str_detect(Palabra,"^#arte|^#art|^#theframe|^#theframesamsung|^#samsung")) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5)
+
+#Son cultura, pintura, drawing, dibujo, painting
+
+```
+
+Las 5 palabras más utilizadas que no sean retweet y que no comiencen con arte
+
+```{r}
+
+DATA_ART %>% 
+  filter(is_retweet==FALSE) %>% 
+  unnest_tokens(Palabra, text, token='tweets') %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^[a-zA-z]")) %>%
+  filter(!str_detect(Palabra,"^#|^@|^arte")) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:5)
+
+#Son obra, grito, gran, digital, museo
+
+```
+
+A esta altura hubiese esperado que "museo" apareciera en el top five como hashtag. 
+La aparición de la palabra "grito" me da la indicación que probablemente haya habido una cierta cantidad de turistas de habla hispana visitando Oslo en Diciembre.
+Que no aparezca la palabra o hashtag "navidad" o similares relacionadas a las fiestas me brinda la sensación que no hay intención de relacionar el arte con las festividades.
+
+BIGRAMAS
+
+```{r}
+DATA_ART %>% 
+    unnest_tokens(Palabra, text, token='ngrams', n = 2) %>%
+    separate(Palabra, c('word1', 'word2'), sep=' ') %>% 
+    filter(!word1%in%stopwords('es')) %>% 
+    filter(!word2%in%stopwords('es')) %>% 
+    filter(!word1%in%silly_words) %>% 
+    filter(!word2%in%silly_words) %>% 
+    filter(str_detect(word1, "^[a-zA-z]|^#|^@")) %>%
+    filter(str_detect(word2, "^[a-zA-z]|^#|^@"))
+
+#CONTEO
+
+DATA_ART %>% 
+    unnest_tokens(Palabra, text, token='ngrams', n = 2) %>%
+    separate(Palabra, c('word1', 'word2'), sep=' ') %>% 
+    filter(!word1%in%stopwords('es')) %>% 
+    filter(!word2%in%stopwords('es')) %>% 
+    filter(!word1%in%silly_words) %>% 
+    filter(!word2%in%silly_words) %>% 
+    filter(str_detect(word1, "^[a-zA-z]|^#|^@")) %>%
+    filter(str_detect(word2, "^[a-zA-z]|^#|^@")) %>%
+    count(word1, word2, sort=TRUE)
+
+#UNIFICACION
+
+DATA_ART %>% 
+    unnest_tokens(Palabra, text, token='ngrams', n = 2) %>%
+    separate(Palabra, c('word1', 'word2'), sep=' ') %>% 
+    filter(!word1%in%stopwords('es')) %>% 
+    filter(!word2%in%stopwords('es')) %>% 
+    filter(!word1%in%silly_words) %>% 
+    filter(!word2%in%silly_words) %>% 
+    filter(str_detect(word1, "^[a-zA-z]|^#|^@")) %>%
+    filter(str_detect(word2, "^[a-zA-z]|^#|^@")) %>%
+    count(word1, word2, sort=TRUE) %>%
+    unite(Palabra, word1, word2, sep=' ') %>% 
+    ungroup() %>%
+    arrange(desc(n)) %>% 
+    mutate(word=Palabra,
+           freq=n) %>% 
+    select(word, freq)
+
+```
+
+La artista Natalie Lennard realizó una obra sobre el nacimiento del hombre (sin censura), donde se ve a María pariendo a su hijo con la ayuda de José, lo cual generó bastante repercusión en las redes sociales. Es de esperar que una obra de estas características enfada a más de un cristiano sobre todo en estas fechas.
+

@@ -1,0 +1,308 @@
+---
+title: "Sentiment_Analysis"
+author: "Maria Jose Cancinos"
+date: "4/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## install remotes packages
+  install.packages(c("syuzhet","SnowballC","ggwordcloud"))
+
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(proustr)
+library(syuzhet)
+library(SnowballC)
+library(ggwordcloud)
+```
+
+Carga de lexicón y base tokenizada por palabra
+
+```{r}
+sdal <- read.csv('https://hernanescu.github.io/data/SDAL_2.csv', encoding = 'UTF-8') %>% 
+  rename('word'=palabra)
+```
+
+```{r}
+
+silly_words <- c('rt','t.co','https','tan','like','follow','youtube','instagram','facebook','y','así','bts_twt',
+                 'q','the','theframe','theframesamsung','d','va','cada','mas','as','lpm','da','etc','j','aqui',
+                 'in','s','v','vez','to','fe0f','u')
+
+DATA_ART_TOK <- DATA_ART %>% 
+  unnest_tokens(Palabra, text) %>% 
+  count(Palabra, sort = TRUE) %>% 
+  filter(!Palabra%in%stopwords('es')) %>% 
+  filter(!Palabra%in%silly_words) %>% 
+  filter(str_detect(Palabra,"^[a-zA-z]|^#|^@")) %>% 
+  arrange(desc(n))
+
+```
+
+Se renombra el campo para poder matchear y realizar el join
+
+```{r}
+DATA_ART_TOK <- DATA_ART_TOK %>% 
+  rename('word'=Palabra)
+
+DATA_ART_TOK_SDAL <- left_join(DATA_ART_TOK, sdal)
+```
+
+Nos quedamos únicamente con lo que tenga media agrado y su coincidiencia en el lexicón.
+
+```{r}
+DATA_ART_TOK_SDAL <- DATA_ART_TOK_SDAL %>%
+  filter(!is.na(media_agrado)) %>%
+  arrange(desc(media_agrado))
+```
+
+Nos quedamos con los 50 positivos y los 50 negativos
+
+```{r}
+token_neg <- DATA_ART_TOK_SDAL %>% 
+  arrange(media_agrado) %>% 
+  .[1:50,]
+
+token_pos <-DATA_ART_TOK_SDAL %>% 
+  arrange(desc(media_agrado)) %>% 
+  .[1:50,] 
+```
+
+Depuramos de la base negativa la repetición relacionada a pierdas, maten, molestan, robado, odiaba
+
+```{r}
+token_neg_clean <- token_neg %>% 
+  mutate(n=case_when(word=='pierdas'~155,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('perder', 'pierden', 'perdáis', 'pierda', 'perdí', 'perdido', 'pierdo')) %>% 
+  mutate(n=case_when(word=='maten'~33,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('mate', 'mata','mato')) %>% 
+  mutate(n=case_when(word=='molestan'~15,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('molestaran','moleste')) %>% 
+  mutate(n=case_when(word=='robado'~21,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('robo','robó','robe')) %>% 
+  mutate(n=case_when(word=='odiaba'~21,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('odio')) %>% 
+  distinct(.$word, .keep_all = TRUE) %>% 
+  select(word, n, media_agrado) %>% 
+  arrange(desc(n))
+```
+
+Depuramos de la base positiva la repetición relacionada a visitar, amor
+
+```{r}
+
+token_pos_clean <- token_pos %>% 
+  mutate(n=case_when(word=='visitar'~365,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('visita')) %>% 
+  mutate(n=case_when(word=='amor'~471,
+                     TRUE~as.numeric(n))) %>% 
+  filter(!word%in%c('ama','amo')) %>% 
+  distinct(.$word, .keep_all = TRUE) %>% 
+  select(word, n, media_agrado) %>% 
+  arrange(desc(n))
+
+```
+
+Graficos Lollipop - Palabras negativas
+
+Primer pantallazo de la información
+
+```{r}
+token_neg_clean %>% #partimos de la base
+  .[1:20,] %>% #tomamos los primeros 20 casos
+  ggplot(., aes(x=word, y=n))+ #indicamos la base y los ejes
+  geom_segment(aes(x=word, xend=word, y=0, yend=n), color="grey")+ #esta es la primera capa: el segmento
+  geom_point(size=3, color="darkred")+ #segunda capa: el punto
+  coord_flip()+ #damos vuelta los ejes
+  theme(
+      panel.grid.minor.y = element_blank(), #detalles estéticos
+      panel.grid.major.y = element_blank(),
+      legend.position="none") +
+    xlab("Palabras") +
+    ylab("Frecuencia")+
+  labs(title='Arte en Diciembre: las 20 palabras más negativas por frecuencia')
+```
+
+Tomamos los primeros 20 casos excluyendo el primero (pierdas)
+Ordenamos la información
+Cambiamos el color
+
+```{r}
+token_neg_clean %>%
+  .[2:21,] %>% #tomamos los primeros 20 casos excluyendo el primero 
+  mutate(word2=fct_reorder(word, n)) %>% #creamos una nueva variable ordenada
+  ggplot(., aes(x=word2, y=n))+ #usamos la variable ordenada para los gráficos
+  geom_segment(aes(x=word2, xend=word2, y=0, yend=n), color="lightblue")+ #esta es la primera capa: el segmento
+  geom_point(size=3, color="blue")+ #segunda capa: el punto
+  coord_flip()+ #damos vuelta los ejes
+  theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position="none") +
+    xlab("Palabras") +
+    ylab("Frecuencia")+
+  labs(title='Arte en Diciembre 2019: las 20 palabras más negativas por frecuencia',
+       subtitle = 'Entregable del taller de Análisis de texto',
+       caption = 'Fuente: Twitter')
+```
+
+Graficos Lollipop - Palabras positivas
+
+Primer pantallazo de la información
+
+```{r}
+token_pos_clean %>% #partimos de la base
+  .[1:20,] %>% #tomamos los primeros 20 casos
+  ggplot(., aes(x=word, y=n))+ #indicamos la base y los ejes
+  geom_segment(aes(x=word, xend=word, y=0, yend=n), color="grey")+ #esta es la primera capa: el segmento
+  geom_point(size=3, color="darkred")+ #segunda capa: el punto
+  coord_flip()+ #damos vuelta los ejes
+  theme(
+      panel.grid.minor.y = element_blank(), #detalles estéticos
+      panel.grid.major.y = element_blank(),
+      legend.position="none") +
+    xlab("Palabras") +
+    ylab("Frecuencia")+
+  labs(title='Arte en Diciembre: las 20 palabras más positivas por frecuencia')
+```
+
+Tomamos los primeros 20 casos excluyendo el primero (arte) y el segundo (canto)
+Ordenamos la información
+Cambiamos el color
+
+```{r}
+token_pos_clean %>%
+  .[3:21,] %>% #tomamos los primeros 20 casos excluyendo el primero 
+  mutate(word2=fct_reorder(word, n)) %>% #creamos una nueva variable ordenada
+  ggplot(., aes(x=word2, y=n))+ #usamos la variable ordenada para los gráficos
+  geom_segment(aes(x=word2, xend=word2, y=0, yend=n), color="pink")+ #esta es la primera capa: el segmento
+  geom_point(size=3, color="purple")+ #segunda capa: el punto
+  coord_flip()+ #damos vuelta los ejes
+  theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position="none") +
+    xlab("Palabras") +
+    ylab("Frecuencia")+
+  labs(title='Arte en Diciembre 2019: las 20 palabras más positivas por frecuencia',
+       subtitle = 'Entregable del taller de Análisis de texto',
+       caption = 'Fuente: Twitter')
+```
+
+
+### Wordcloud por SDAL
+
+```{r}
+
+DATA_ART_TOK_SDAL %>% 
+  mutate(angle = 45 * sample(-2:2, n(), replace = TRUE, prob = c(1, 1, 4, 1, 1))) %>% #variable nueva
+  ggplot(., aes(label=word, size=n, color = media_agrado, angle = angle))+ #cuatro parámetros!
+  geom_text_wordcloud_area(rm_outside = TRUE)+ #una de las dos formas de usar la librería
+  scale_color_gradient(low="#c90000", high="#009A44")+ #escalas de color
+  scale_size_area(max_size = 100)+ #tamaños máximos
+  theme_minimal()+ #forma minimalista
+  labs(title='Wordcloud: Arte en Diciembre',
+       subtitle='Entregable del Taller de Análisis de Texto',
+       caption='Fuente: Twitter')
+```
+
+## Sentiment analysis con NRC
+
+Depuración de la información 
+
+```{r}
+base_art_text <- gsub("http.*","",DATA_ART$text)
+base_art_text <- gsub("https.*","",base_art_text)
+base_art_text <- gsub("#\\w+","",base_art_text)
+base_art_text <- gsub("@\\w+","",base_art_text)
+base_art_text <- gsub("[[:punct:]]","",base_art_text)
+base_art_text <- gsub("\\w*[0-9]+\\w*\\s*", "",base_art_text)
+
+base_art_text2 <- gsub("rt ", "", base_art_text)
+base_art_text2 <- gsub("RT ", "", base_art_text2)
+base_art_text2 <- gsub("\n", "", base_art_text2)
+head(base_art_text2)
+
+```
+
+Función get_nrc_sentiment
+
+```{r}
+nrc_data <- get_nrc_sentiment(char_v = base_art_text2, language = 'spanish')
+
+nrc_data %>% head()
+
+```
+
+Separamos enojo y miedo
+
+```{r}
+
+miedo_enojo <- which(nrc_data$fear>2 & nrc_data$anger>2)
+base_text_orig[miedo_enojo]
+
+##[42] "Todas las fotos de esta gestora cultural reflejan esa misma energía luminosa. Todo asesinato es una tragedia pero produce un dolor enorme que maten a quienes hacen arte, despiertan conciencias, defienden la participación local y empoderan a mujeres, etnias y territorios. https://t.co/lIDph4LS2R" 
+
+##[34] "Inquieta el silencio del presidente de las industrias creativas ante el asesinato de Lucy Villareal, una mujer que trabajó para que el arte y la cultura se conviertieran en vehículos de resilencia y expresión." 
+
+##[13] "El #Arte es de quien lo trabaja!! y la actividad Creativa NO debe ser Censurada por grupos y personas que a falta de argumentos de discusión...solo recurren a los #MensajesDeOdio que llevan a la #Violencia!!!\r\n\r\nA 100 años de su Asesinato....#Zapata esta más vivo que nunca!!!! https://t.co/CESC6Oyi8D"
+
+```
+
+Traducción al español + pasaje a dataframe + conteo de las emociones
+
+```{r}
+nrc_data <- nrc_data %>% 
+  rename('anticipación'=anticipation,
+           'ira'=anger,
+           'disgusto'=disgust,
+           'miedo'=fear,
+           'alegría'=joy,
+           'tristeza'=sadness,
+           'sorpresa'=surprise,
+           'confianza'=trust,
+           'negativa'=negative,
+           'positiva'=positive)
+
+base_emocion <- data.frame(t(nrc_data))
+
+base_emocion <- data.frame(rowSums(base_emocion))
+head(base_emocion)
+
+names(base_emocion)[1] <- "cuenta"
+base_emocion <- cbind('sentimiento'=rownames(base_emocion), base_emocion)
+head(base_emocion)
+
+rownames(base_emocion) <- NULL
+head(base_emocion)
+
+```
+
+Gráfico de Barras
+
+```{r}
+ggplot(base_emocion[1:8,], aes(x = sentimiento, y = round(cuenta/sum(cuenta)*100, 1), fill = sentimiento)) + 
+  geom_bar(stat = "identity") +
+  labs(title='Arte en Diciembre - Sentiment Analysis (NRC)',
+       subtitle = 'Entregable del Taller de Análisis de Texto',
+       caption='Fuente: Twitter',
+       x = "Sentimiento", 
+       y = "Frecuencia") +
+  geom_text(aes(label = paste(round(cuenta/sum(cuenta)*100, 1), '%')),
+            vjust = 1.5, color = "black",
+            size = 5)
+```
+
