@@ -1,0 +1,172 @@
+---
+title: "3_Topic_Modeling"
+author: "Maria Jose Cancinos"
+date: "5/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+install.packages("SnowballC","topicmodels","RVerbalExpressions")
+
+```{r, echo=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(proustr)
+library(syuzhet)
+library(SnowballC)
+library(topicmodels)
+library(RVerbalExpressions)
+library(ggplot2)
+library(ggwordcloud)
+```
+
+Copio la base
+
+```{r}
+
+DATA_ART_TOPIC <- DATA_ART
+
+```
+
+
+Limpieza sobre la base
+
+```{r}
+
+DATA_ART_TOPIC$text <- gsub("#\\w+","",DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub("@\\w+","",DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub("http.*","",DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub("https.*","",DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub("[[:punct:]]","",DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub("\\w*[0-9]+\\w*\\s*", "",DATA_ART_TOPIC$text)
+
+expresion <- rx() %>% 
+  rx_find('RT')
+expresion2 <- rx() %>% 
+  rx_find('\n')
+expresion3 <- rx() %>% 
+  rx_find('\r')
+
+DATA_ART_TOPIC$text <- gsub(expresion, '', DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub(expresion2, '', DATA_ART_TOPIC$text)
+DATA_ART_TOPIC$text <- gsub(expresion3, '', DATA_ART_TOPIC$text)
+
+head(DATA_ART_TOPIC,20)
+
+```
+
+Filtramos los "tipo vacío" y armamos otra base
+
+```{r}
+DATA_ART_TOPIC2 <- DATA_ART_TOPIC %>% 
+  filter(text!='')
+
+print(dim(DATA_ART_TOPIC))
+print(dim(DATA_ART_TOPIC2))
+
+#Diferencia de 21 tweets
+
+```
+
+Armado de ID
+
+```{r}
+
+DATA_ART_TOPIC2 <- DATA_ART_TOPIC2 %>% 
+  mutate(id=as.numeric(rownames(.)))
+
+```
+
+Tokenización y matriz
+
+```{r}
+DATA_ART_TOPIC_DTM <- DATA_ART_TOPIC2 %>%
+  unnest_tokens(input=text, output=word, token = 'tweets') %>% 
+  filter(!word%in%stopwords('es')) %>%
+  filter(!word%in%silly_words) %>%
+  filter(str_detect(word, "^[a-zA-z]"))%>%
+  filter(!str_detect(word, "^[http]"))%>%
+  count(id, word) %>% 
+  cast_dtm(document=id, term=word, value=n)
+
+```
+
+Armado de modelo y guardado
+
+```{r}
+arte_lda <- LDA(DATA_ART_TOPIC_DTM, #nuestro dtm
+                k = 2, #cantidad de grupos
+                method = "Gibbs", #método algorítmico
+                control = list(seed = 42, #reproducibilidad
+                               iter = 4000, #cantidad de iteraciones del modelo
+                               thin = 50, #selección de modelos (viene de C)
+                               burnin = 30, #cuantos descarta al principio
+                               alpha=0.5)) #reparto de las categorías (confianza de que es la etiqueta)
+
+
+saveRDS(arte_lda,'arte_lda.rds')
+
+```
+
+Armado de base gamma, ID a numérico , join con DATA_ART_TOPIC2, eliminación de los registros que no tienen tópico
+
+```{r}
+
+base_gamma <- tidy(arte_lda, 'gamma') %>% #el proceso de ordenamiento
+  group_by(document) %>% #agrupamos por documento
+  slice(which.max(gamma)) #pedimos que devuelva sólo aquel que tenga mayor gamma de los dos
+
+base_gamma <- base_gamma %>% 
+  mutate(id=as.numeric(document))
+
+base_topics <- left_join(DATA_ART_TOPIC2, base_gamma)
+
+base_topics
+
+base_topics2 <- base_topics %>% 
+  filter(!is.na(topic))
+
+base_topics2
+
+```
+
+Selección de variables
+
+```{r}
+base_topics_clean <- base_topics2 %>% 
+  select(text, topic, gamma, is_retweet, retweet_source)
+
+base_topics_clean %>% head()
+```
+
+¿Cómo quedó repartido?
+
+   1    2 
+6349 8728
+
+```{r}
+table(base_topics_clean$topic)
+```
+
+Nos quedamos con los tweets de gamma alto
+
+   1    2 
+3946 4924 
+
+```{r}
+base_topics_clean2 <- base_topics_clean %>% 
+  filter(gamma>=0.9)
+
+table(base_topics_clean2$topic)
+```
+
+Extraemos una cierta N cantidad de datos del modelo 
+
+```{r}
+as.matrix(terms(arte_lda,20))
+```
+
