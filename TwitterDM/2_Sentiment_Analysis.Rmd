@@ -212,7 +212,7 @@ DATA_ART_TOK_SDAL %>%
   ggplot(., aes(label=word, size=n, color = media_agrado, angle = angle))+ #cuatro parámetros!
   geom_text_wordcloud_area(rm_outside = TRUE)+ #una de las dos formas de usar la librería
   scale_color_gradient(low="#c90000", high="#009A44")+ #escalas de color
-  scale_size_area(max_size = 100)+ #tamaños máximos
+  scale_size_area(max_size = 75)+ #tamaños máximos
   theme_minimal()+ #forma minimalista
   labs(title='Wordcloud: Arte en Diciembre',
        subtitle='Entregable del Taller de Análisis de Texto',
